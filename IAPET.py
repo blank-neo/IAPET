@@ -342,75 +342,7 @@ class Attention(nn.Module):
 
 #####################################
 class net_backbone(nn.Module):
-    def __init__(self, in_dim=3, dim=16, prompt_inch=128, prompt_size=32):
-        super(net_backbone, self).__init__()
-        # initial convolution
-        self.conv1 = nn.Conv2d(in_dim, dim, 3, padding=1, groups=1)
-        self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.down1 = Downsample(dim)
-        self.conv2 = RFAConv(dim * 2, dim * 2)
-        self.down2 = Downsample(dim * 2)
-        self.conv3 = RFAConv(dim * 4, dim * 4)
-        self.pem2 = PemBlock(dim * 4, prompt_dim=prompt_inch, drop_path=0.01)
-        self.up2 = Upsample(dim * 4)
-        self.conv4 = RFAConv(dim * 4, dim * 2)
-        self.pem1 = PemBlock(dim * 2, prompt_dim=prompt_inch // 2, drop_path=0.05)
-        self.up1 = Upsample(dim * 2)
-        self.conv5 = RFAConv(dim * 2, in_dim)
-
-        self.prompt_param = nn.Parameter(torch.rand(1, prompt_inch, prompt_size, prompt_size))  # (b,c,h,w)
-        self.myPromptParam = AIPMParam(prompt_inch=prompt_inch)
-
-        self.mul_end = nn.Sequential(nn.Conv2d(dim, 3, 3, 1, 1), nn.ReLU())
-        self.add_end = nn.Sequential(nn.Conv2d(dim, 3, 3, 1, 1), nn.Tanh())
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-        elif isinstance(m, nn.Conv2d):
-            fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-            fan_out //= m.groups
-            m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
-            if m.bias is not None:
-                m.bias.data.zero_()
-
-    def forward(self, img):
-
-        prompt_params = self.myPromptParam(self.prompt_param)
-        prompt_param1 = prompt_params[1]
-        prompt_param2 = prompt_params[0]
-
-        img1 = self.conv1(img)              # (b,dim,h,w)   dim=16
-        img1_relu = self.relu(img1)
-        img1_down = self.down1(img1_relu)   # (b,dim*2,h/2,w/2)
-        img2 = self.conv2(img1_down)    # (b,dim*2,h/2,w/2)
-        img2_down = self.down2(img2)    # (b,dim*4,h/4,w/4)
-        img3 = self.conv3(img2_down)    # H/4*W/4*16*4
-
-        device = img3.device
-        self.pem1 = self.pem1.to(device)
-        self.pem2 = self.pem2.to(device)
-
-        img4 = self.pem2(img3, prompt_param2)          # H/4*W/4*16*4
-        img4_up = self.up2(img4)        # H/2*W/2*16*2
-        img5 = self.conv4(torch.cat([img2, img4_up], 1))
-
-        img6 = self.pem1(img5, prompt_param1)          # H/2*W/2*16*2
-        img6_up = self.up1(img6)        # H*W*16
-        #img7 = self.conv5(torch.cat([img1_relu, img6_up], 1))   #H*W*16*2
-        img7 = img1_relu + img6_up
-        mul = img1_relu + img6_up
-        add = img1_relu + img6_up
-
-        mul = self.mul_end(mul)
-        add = self.add_end(add)
-        return mul, add
+    
 
 
 class IAPET(nn.Module):
